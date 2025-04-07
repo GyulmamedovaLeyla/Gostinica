@@ -2,6 +2,7 @@ import psycopg2
 import tkinter as tk
 from tkinter import messagebox
 from datetime import datetime, timedelta
+from tkinter import ttk
 
 DB_CONFIG = {
     "dbname": "HotelManagement",
@@ -305,6 +306,11 @@ class AddUserWindow:
         pad_y = 10
         pad_x = 20
 
+        self.roles = {
+            "Пользователь": 1,
+            "Администратор": 2
+        }
+
         tk.Label(self.window, text="Имя", font=("Arial", font_size)).grid(
             row=0, column=0, pady=pad_y, padx=pad_x, sticky="w")
         self.name_entry = tk.Entry(self.window, font=("Arial", font_size))
@@ -325,12 +331,17 @@ class AddUserWindow:
         self.password_entry = tk.Entry(self.window, font=("Arial", font_size))
         self.password_entry.grid(row=3, column=1, pady=pad_y, padx=pad_x, sticky="ew")
 
-        tk.Label(self.window,
-                 text="Роль (1 - Пользователь, 2 - Администратор)",
-                 font=("Arial", font_size)).grid(
+        tk.Label(self.window, text="Роль", font=("Arial", font_size)).grid(
             row=4, column=0, pady=pad_y, padx=pad_x, sticky="w")
-        self.role_entry = tk.Entry(self.window, font=("Arial", font_size))
-        self.role_entry.grid(row=4, column=1, pady=pad_y, padx=pad_x, sticky="ew")
+
+        self.role_combobox = ttk.Combobox(
+            self.window,
+            values=list(self.roles.keys()),
+            font=("Arial", font_size),
+            state="readonly"
+        )
+        self.role_combobox.grid(row=4, column=1, pady=pad_y, padx=pad_x, sticky="ew")
+        self.role_combobox.current(0)  # Устанавливаем значение по умолчанию
 
         tk.Button(self.window, text="Добавить", command=self.add_user,
                   font=("Arial", font_size)).grid(
@@ -347,9 +358,11 @@ class AddUserWindow:
         surname = self.surname_entry.get()
         login = self.login_entry.get()
         password = self.password_entry.get()
-        role = self.role_entry.get()
 
-        if not (name and surname and login and password and role):
+        selected_role = self.role_combobox.get()
+        role = self.roles.get(selected_role)
+
+        if not (name and surname and login and password):
             messagebox.showerror("Ошибка", "Заполните все поля")
             return
 
@@ -452,7 +465,6 @@ class ManageUsersWindow:
 
 class EditUserWindow:
     """Окно редактирования пользователя"""
-
     def __init__(self, user_id, parent_window):
         self.edit_window = tk.Toplevel(parent_window)
         self.edit_window.title("Редактирование пользователя")
@@ -484,25 +496,41 @@ class EditUserWindow:
         entry_font = ("Arial", 12)
         button_font = ("Arial", 12, "bold")
 
-        # Сохраняем ключ для роли в переменную для повторного использования
-        self.role_key = "Роль (1 - Польз., 2 - Админ.)"
+        self.roles = {
+            "Пользователь": 1,
+            "Администратор": 2
+        }
         fields = [
-            ("Имя", name),
-            ("Фамилия", surname),
-            ("Логин", login),
-            (self.role_key, str(role))
+            ("Имя", name, "entry"),
+            ("Фамилия", surname, "entry"),
+            ("Логин", login, "entry"),
+            ("Роль", role, "combobox")
         ]
 
         self.entries = {}
-        for i, (label, value) in enumerate(fields):
+        for label, value, field_type in fields:
             row_frame = tk.Frame(form_frame)
             row_frame.pack(fill=tk.X, pady=8)
 
             tk.Label(row_frame, text=label, font=label_font, width=25, anchor="w").pack(side=tk.LEFT)
-            entry = tk.Entry(row_frame, font=entry_font)
-            entry.insert(0, value)
-            entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
-            self.entries[label] = entry
+
+            if field_type == "entry":
+                entry = tk.Entry(row_frame, font=entry_font)
+                entry.insert(0, value)
+                entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
+                self.entries[label] = entry
+            elif field_type == "combobox":
+                combo = ttk.Combobox(
+                    row_frame,
+                    values=list(self.roles.keys()),
+                    font=entry_font,
+                    state="readonly"
+                )
+                current_role = next((k for k, v in self.roles.items() if v == value), None)
+                if current_role:
+                    combo.set(current_role)
+                combo.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
+                self.entries[label] = combo
 
         save_btn = tk.Button(button_frame, text="Сохранить изменения",
                              font=button_font, command=self.save_user, height=2)
@@ -514,12 +542,15 @@ class EditUserWindow:
 
     def save_user(self):
         try:
-            data = {key: entry.get() for key, entry in self.entries.items()}
+            name = self.entries["Имя"].get()
+            surname = self.entries["Фамилия"].get()
+            login = self.entries["Логин"].get()
+            role_name = self.entries["Роль"].get()
+            role = self.roles.get(role_name, 1)
 
             execute_query(
                 "UPDATE POLZOVATELI SET Imya=%s, Familiya=%s, Login=%s, rolid=%s WHERE ID=%s",
-                (data["Имя"], data["Фамилия"], data["Логин"],
-                 data[self.role_key], self.user_id),
+                (name, surname, login, role, self.user_id),
                 commit=True
             )
 
